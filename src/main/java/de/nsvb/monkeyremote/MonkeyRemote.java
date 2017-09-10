@@ -10,6 +10,8 @@ import com.android.chimpchat.core.IChimpDevice;
 import com.android.chimpchat.core.TouchPressType;
 import java.awt.Graphics;
 import java.awt.event.MouseEvent;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.awt.image.BufferedImage;
@@ -57,9 +59,13 @@ public class MonkeyRemote extends JFrame {
         DeviceScreen screen = new DeviceScreen(initialScreen, dWScaled, dHScaled);
 
         GestureListener gestureListener = new GestureListener(device);
+        KeyListener keyListener = new KeyListener(device);
+        
         screen.addMouseListener(gestureListener);
         screen.addMouseMotionListener(gestureListener);
-
+        screen.addKeyListener(keyListener);
+        screen.setFocusable(true);
+        
         add(screen);
         //pack();
         setVisible(true);
@@ -154,25 +160,39 @@ public class MonkeyRemote extends JFrame {
         private long lastSent = 0;
         private int lastX = 0;
         private int lastY = 0;
-
+        TouchPressType keyActionType;
+        String key;
         public GestureListener(IChimpDevice device) {
             this.device = device;
         }
 
         @Override
         public void mousePressed(MouseEvent e) {
-            if (e.getButton() == MouseEvent.BUTTON1) {
-                if (gestureActive) {
-                    sendTouchEvent(lastX, lastY, TouchPressType.UP);
-                    System.out.println("UP, cancelling old gesture " + lastX + " " + lastY);
-                }
-                int x = (int) (e.getX() / scalingFactor);
-                int y = (int) (e.getY() / scalingFactor);
-                gestureActive = true;
-                lastX = x;
-                lastY = y;
-                sendTouchEvent(x, y, TouchPressType.DOWN);
-                System.out.println("DOWN " + x + " " + y);
+            switch (e.getButton()) 
+            {
+                case MouseEvent.BUTTON1:
+                    if (gestureActive) {
+                        sendTouchEvent(lastX, lastY, TouchPressType.UP);
+                        System.out.println("UP, cancelling old gesture " + lastX + " " + lastY);
+                    }
+                    int x = (int) (e.getX() / scalingFactor);
+                    int y = (int) (e.getY() / scalingFactor);
+                    gestureActive = true;
+                    lastX = x;
+                    lastY = y;
+                    sendTouchEvent(x, y, TouchPressType.DOWN);
+                    System.out.println("DOWN " + x + " " + y);
+                    break;
+                case MouseEvent.BUTTON2:
+                    keyActionType = TouchPressType.DOWN_AND_UP;
+                    key = String.valueOf(3);
+                    device.press(key, keyActionType);
+                    break;
+                case MouseEvent.BUTTON3:
+                    keyActionType = TouchPressType.DOWN_AND_UP;
+                    key = String.valueOf(4);
+                    device.press(key, keyActionType);
+                    break;
             }
         }
 
@@ -210,4 +230,61 @@ public class MonkeyRemote extends JFrame {
         }
     }
 
+    public class KeyListener extends KeyAdapter
+    {
+        //android.view.KeyEvent AndroidKeyEvent = new android.view.KeyEvent();
+        private boolean keyActive = false;
+        private String key;
+        private final IChimpDevice device;
+        public KeyListener(IChimpDevice device) {
+            this.device = device;
+        }
+        
+	@Override
+	public void keyPressed(KeyEvent e)
+	{
+            if(!keyActive)
+            {
+                switch (e.getKeyCode()) 
+                {
+                    case KeyEvent.VK_BACK_SPACE:
+                        key = String.format("%x", 0x67); //KEYCODE_DEL;
+                        break;
+                    case KeyEvent.VK_DELETE:
+                        key = String.format("%x", 0x112); //KEYCODE_FORWARD_DEL;
+                        break;
+                    case KeyEvent.VK_SPACE:
+                        key = String.format("%x", 0x62); //KEYCODE_SPACE
+                        break;
+                    case KeyEvent.VK_LEFT:
+                        key = String.format("%x", 0x21); //KEYCODE_LEFT 
+                        break;
+                    case KeyEvent.VK_RIGHT:
+                        key = String.format("%x", 0x22); //KEYCODE_RIGHT
+                        break;
+                    case KeyEvent.VK_UP:
+                        key = String.format("%x", 0x19); //KEYCODE_UP
+                        break;
+                    case KeyEvent.VK_DOWN:
+                        key = String.format("%x", 0x20); //KEYCODE_DOWN
+                        break;
+                    default :
+                        key = String.valueOf(e.getKeyChar());
+                }
+                keyActive = true;                  
+            }
+	}
+        @Override
+	public void keyReleased(KeyEvent e)
+        {
+            TouchPressType type;
+            type = TouchPressType.DOWN_AND_UP;
+            if(keyActive)
+            {
+                device.press(key, type);
+                keyActive = false;
+            }
+        }
+    }   
+    
 }
